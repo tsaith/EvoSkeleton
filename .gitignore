@@ -1,0 +1,40 @@
+# for IDE
+.idea/
+.vscode/
+
+
+# Checkpoints
+*.pt
+*.pth
+*.tar
+
+# Videos
+videos/
+video/
+*.mp4
+
+# for redundant files
+*~
+*.pyc
+*.jpg
+*.swp
+*.png
+*.tar.gz
+*.zip
+*.tar
+*.json
+
+
+# for data and experiments directories
+ckpt/
+checkpoint/
+data/
+h36m/
+h36m_ft/
+models/
+
+# for jupyter notebook
+.ipynb_checkpoints/
+Would skip repository src/progress
+
+!img/*.png
