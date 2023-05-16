@@ -114,3 +114,100 @@ def unNormalizeData(normalized_data, data_mean, data_std, dimensions_to_ignore):
 
     return orig_data
 
+def convert_holistic_to_skeleton_2d(data):
+
+    num_points = 17
+    dims = 2
+    skel = np.zeros((num_points, dims), dtype=np.float32)
+
+    def get_2d(p):
+        return p[0:2]
+
+    left_ear = get_2d(data.get_left_ear())
+    right_ear = get_2d(data.get_right_ear())
+    head = 0.5*(left_ear + right_ear)
+
+    left_hip = get_2d(data.get_left_hip())
+    right_hip = get_2d(data.get_right_hip())
+    hip_center = 0.5*(left_hip + right_hip)
+
+    left_shoulder = get_2d(data.get_left_shoulder())
+    right_shoulder = get_2d(data.get_right_shoulder())
+    shoulder_center = 0.5*(left_shoulder + right_shoulder)
+
+    # Pelvis
+    pelvis = 0.8*hip_center + 0.2*shoulder_center
+    skel[0, :] = pelvis
+
+    # Right hip
+    skel[1, :] = right_hip
+
+    # Right knee
+    right_knee = get_2d(data.get_right_knee())
+
+    skel[2, :] = right_knee
+
+    # Right ankle
+    right_ankle = get_2d(data.get_right_ankle())
+
+    skel[3, :] = right_ankle
+
+    # Left hip
+    skel[4, :] = left_hip
+
+    # Left knee
+    left_knee = get_2d(data.get_left_knee())
+
+    skel[5, :] = left_knee
+
+    # Left ankle
+    left_ankle = get_2d(data.get_left_ankle())
+
+    skel[6, :] = left_ankle
+
+    # Spine
+    spine = 0.5*(hip_center + shoulder_center)
+
+    skel[7, :] = spine
+
+    # Thorax
+    thorax = shoulder_center
+    skel[8, :] = thorax
+
+    # Neck
+    neck = 0.7*shoulder_center + 0.3*head
+    skel[9, :] = neck
+
+    # Head top
+    head_top = head 
+    skel[10, :] = head_top
+
+    # Left shoulder
+    left_shoulder = get_2d(data.get_left_shoulder())
+    skel[11, :] = left_shoulder
+
+    # Left elbow
+    left_elbow = get_2d(data.get_left_elbow())
+    skel[12, :] = left_elbow
+
+    # Left wrist
+    left_wrist = get_2d(data.get_left_wrist())
+    skel[13, :] = left_wrist
+
+    # right shoulder
+    right_shoulder = get_2d(data.get_right_shoulder())
+    skel[14, :] = right_shoulder
+
+    # right elbow
+    right_elbow = get_2d(data.get_right_elbow())
+    skel[15, :] = right_elbow
+
+    # right wrist
+    right_wrist = get_2d(data.get_right_wrist())
+    skel[16, :] = right_wrist
+
+    # Convert to pixel space
+    skel[:, 0] = skel[:, 0] * data.image_width
+    skel[:, 1] = skel[:, 1] * data.image_height
+
+    return skel
