@@ -15,7 +15,8 @@ import numpy as np
 import imageio.v2 as imageio
 import matplotlib.pyplot as plt
 
-from skeleton_utils import re_order_indices, normalize, unnormalize
+from skeleton_utils import re_order_indices, estimate_stats, normalize, unNormalizeData
+from cascade_detector import CascadeDetector
 from plot_utils import draw_skeleton, plot_3d_ax, adjust_figure
 
 from skyeye.utils import Timer
@@ -32,8 +33,14 @@ def get_pred(cascade, data):
         cascade[i].num_blocks = len(cascade[i].res_blocks)
     prediction = cascade[0](data)
     # prediction for later stages
+
+    print(f"num_stages: {num_stages}")
+
     for stage_idx in range(1, num_stages):
         prediction += cascade[stage_idx](data)
+
+    print(f"prediction shape: {prediction.shape}")
+
     return prediction
 
 
@@ -49,7 +56,8 @@ def main():
     # paths
     data_dic_path = './example_annot.npy'     
     model_path = './example_model.th'
-    stats = np.load('./stats.npy', allow_pickle=True).item()
+    stats_path = './stats.npy'
+    stats = np.load(stats_path, allow_pickle=True).item()
     dim_used_2d = stats['dim_use_2d']
     mean_2d = stats['mean_2d']
     std_2d = stats['std_2d'] 
@@ -79,7 +87,13 @@ def main():
     count = 0
     total_to_show = 10
     
+
+    detector = CascadeDetector()
+    detector.load_model(model_path)
+    detector.load_stats(stats_path)
     
+
+
     for image_name in data_dic.keys():
     
         print(f"Process {image_name}")
@@ -98,10 +112,7 @@ def main():
         ax2.invert_yaxis()
         skeleton_pred = None
         skeleton_2d = data_dic[image_name]['p2d']
-        # The order for the 2D keypoints is:
-        # 'Hip', 'RHip', 'RKnee', 'RFoot', 'LHip', 'LKnee', 'LFoot', 'Spine', 
-        # 'Thorax', 'Neck/Nose', 'Head', 'LShoulder', 'LElbow', 'LWrist', 'RShoulder'
-        # 'RElbow', 'RWrist'
+
         draw_skeleton(ax2, skeleton_2d, gt=True)
         plt.plot(skeleton_2d[:,0], skeleton_2d[:,1], 'ro', 2)       
         # Nose was not used for this examplar model
@@ -109,13 +120,10 @@ def main():
         timer = Timer()
     
         timer.tic()
-        norm_ske_gt = normalize(skeleton_2d, re_order_indices).reshape(1,-1)
-        pred = get_pred(cascade, torch.from_numpy(norm_ske_gt.astype(np.float32)))      
-        pred = unnormalize(pred.data.numpy(),
-            stats['mean_3d'],
-            stats['std_3d'],
-            stats['dim_ignore_3d'])      
-    
+        #print(f"skeleton_2d: {skeleton_2d}")
+
+        pred = detector.predict(skeleton_2d)
+
         dt = timer.toc()
     
         print(f"Time cost of inference is {dt} in seconds.")
@@ -144,6 +152,7 @@ def main():
         filepath = os.path.join(output_dir, filename)
         plt.savefig(filepath)
 
+    #print(f"data_dic: {data_dic}")
 
 if __name__ == "__main__":
 
