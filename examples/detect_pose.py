@@ -17,9 +17,10 @@ import imageio.v2 as imageio
 import imageio.v3 as iio
 import matplotlib.pyplot as plt
 
-from skeleton_utils import re_order_indices, estimate_stats, normalize, unNormalizeData
+from skeleton_utils import re_order
 from skeleton_utils import convert_holistic_to_skeleton_2d
 from cascade_detector import CascadeDetector
+from plot_utils import plot_skeleton_2d
 from plot_utils import draw_skeleton, plot_3d_ax, adjust_figure
 
 import mediapipe as mp
@@ -54,25 +55,23 @@ def draw_msg(image, msg, x, y, y_shift=20, color=(0, 255,0)):
 
 def main():
 
+    use_webcam = False # True: use video; False: use webcam
+    use_image = True
 
-    use_webcam = True # True: use video; False: use webcam
-
-    #video_path = "videos/TurnBody.mp4"
+    video_path = "videos/TurnBody.mp4"
     #video_path = "videos/Jump.mp4"
     #video_path = "videos/SquatDown.mp4" 
-    video_path = "videos/WalkAround.mp4"
+    #video_path = "videos/WalkAround.mp4"
+
+    #image_path = "imgs/7.jpg"
+
+    image_dir = "images"
+    image_path = os.path.join(image_dir, "TurnBody/frame_0090.jpg")
+    #image_path = os.path.join(image_dir, "TurnBody/frame_0120.jpg")
+    #image_path = os.path.join(image_dir, "SquatDown/frame_0150.jpg")
+    #image_path = os.path.join(image_dir, "SquatDown/frame_0420.jpg")
+
     webcam_device = 0 # Device ID
-
-    '''
-    source = "videos/WalkAround.mp4"
-    for frame in iio.imiter(source, plugin="pyav"):
-        cv.imshow("frame", frame)
-
-        # Exit while 'q' or 'Esc' is pressed
-        key = wait_key(1)
-        if key == ord("q") or key == 27: break
-    '''      
-
 
     frame_width = 640
     frame_height = 480
@@ -80,7 +79,6 @@ def main():
     use_V4L2 = True
     autofocus = False
     auto_exposure = True
-
 
     image_dir = "imgs"
     output_dir = "outputs"
@@ -109,42 +107,10 @@ def main():
             print(f"Failed to open video file. {video_path}")
             exit()
 
-    
-    
     # paths
     data_dic_path = './example_annot.npy'     
     model_path = './example_model.th'
     stats_path = './stats.npy'
-    stats = np.load(stats_path, allow_pickle=True).item()
-    dim_used_2d = stats['dim_use_2d']
-    mean_2d = stats['mean_2d']
-    std_2d = stats['std_2d'] 
-    # load the checkpoint and statistics
-    ckpt = torch.load(model_path)
-    data_dic = np.load(data_dic_path, allow_pickle=True).item()
-    # initialize the model
-    cascade = libm.get_cascade()
-    input_size = 32
-    output_size = 48
-    for stage_id in range(2):
-        # initialize a single deep learner
-        stage_model = libm.get_model(stage_id + 1,
-                                     refine_3d=False,
-                                     norm_twoD=False, 
-                                     num_blocks=2,
-                                     input_size=input_size,
-                                     output_size=output_size,
-                                     linear_size=1024,
-                                     dropout=0.5,
-                                     leaky=False)
-        cascade.append(stage_model)
-    
-    cascade.load_state_dict(ckpt)
-    cascade.eval()
-
-    # process and show total_to_show examples
-    count = 0
-    total_to_show = 10
     
     # Detector
     detector = CascadeDetector()
@@ -161,22 +127,24 @@ def main():
     while True:
 
         frame_count += 1
-        print("frame_count = {}".format(frame_count))
+        print(f"frame_count = {frame_count}")
 
         ret, frame = cap.read()
 
-        if not ret:
-            break
+        if use_image:
+            frame = cv.imread(image_path)
+
+        #if not ret:
+        #    break
 
         if frame is None:
             continue
 
-
         # Resize frame  
         frame = cv.resize(frame, (frame_width, frame_height), interpolation=cv.INTER_AREA)
 
+        #frame = cv.flip(frame, 1)
 
-        frame = cv.flip(frame, 1)
         image = frame.copy()
         image_out = frame.copy()
 
@@ -194,7 +162,7 @@ def main():
         results = holistic_detector.process(image)
 
         holistic_data.update(results)
-        skeleton_2d = convert_holistic_to_skeleton_2d(holistic_data)
+        skel_2d = convert_holistic_to_skeleton_2d(holistic_data)
 
         #f = plt.figure()
         f = plt.figure(figsize=(15, 5))
@@ -207,13 +175,26 @@ def main():
         plt.title('2D key-point inputs: {:d}*2'.format(num_joints))
         ax2.set_aspect('equal')
         ax2.invert_yaxis()
-        draw_skeleton(ax2, skeleton_2d, gt=True)
-        plt.plot(skeleton_2d[:,0], skeleton_2d[:,1], 'ro', 2)       
+        plot_skeleton_2d(ax2, skel_2d)
+        #draw_skeleton(ax2, skel_2d, gt=True)
+        plt.plot(skel_2d[:,0], skel_2d[:,1], 'ro', 2)       
 
 
         timer.tic()
 
-        pred = detector.predict(skeleton_2d)
+        pred = detector.predict(skel_2d)
+
+
+        skel_3d = pred.copy()
+        skel_3d = re_order(skel_3d)
+        skel_3d = skel_3d.reshape(-1, 3)
+
+        print(f"skel_2d shape: {skel_2d.shape}")
+        print(f"skel_3d shape: {skel_3d.shape}")
+        #print(f"hip_2d, hip_3d: {skel_2d[0]}, {skel_3d[0]}")
+        #print(f"left_wrist_2d, left_wrist_3d: {skel_2d[13]}, {skel_3d[19]}")
+        #print(f"right_wrist_2d, right_wrist_3d: {skel_2d[16]}, {skel_3d[27]}")
+       
 
         dt = timer.toc()
         fps = 1.0/dt
@@ -222,7 +203,7 @@ def main():
         plot_3d_ax(ax=ax3, 
                    pred=pred, 
                    elev=0,  # 10, 
-                   azim=-60, # -90,
+                   azim=0, # -90,
                    title='3D prediction'
                    )    
         adjust_figure(left = 0.05, 
@@ -234,7 +215,7 @@ def main():
                       )       
 
         # Save figure
-        filename = f"snapshot_2d.jpg" 
+        filename = f"snapshot.jpg" 
         filepath = os.path.join(output_dir, filename)
         plt.savefig(filepath)
 
@@ -256,70 +237,6 @@ def main():
         # Exit while 'q' or 'Esc' is pressed
         key = wait_key(1)
         if key == ord("q") or key == 27: break
-
-
-
-    '''
-    for image_name in data_dic.keys():
-    
-        print(f"Process {image_name}")
-    
-        image_path = os.path.join(image_dir, image_name)
-        img = imageio.imread(image_path)
-
-        f = plt.figure(figsize=(9, 3))
-        ax1 = plt.subplot(131)
-        ax1.imshow(img)
-        plt.title('Input image')
-        ax2 = plt.subplot(132)
-        plt.title('2D key-point inputs: {:d}*2'.format(num_joints))
-        ax2.set_aspect('equal')
-        ax2.invert_yaxis()
-
-        skeleton_2d = data_dic[image_name]['p2d']
-
-        draw_skeleton(ax2, skeleton_2d, gt=True)
-        plt.plot(skeleton_2d[:,0], skeleton_2d[:,1], 'ro', 2)       
-        # Nose was not used for this examplar model
-    
-        timer = Timer()
-    
-        timer.tic()
-        print(f"skeleton_2d: {skeleton_2d}")
-        print(f"skeleton_2d shape: {skeleton_2d.shape}")
-
-        pred = detector.predict(skeleton_2d)
-
-        dt = timer.toc()
-    
-        print(f"Time cost of inference is {dt} in seconds.")
-    
-    
-        ax3 = plt.subplot(133, projection='3d')
-        plot_3d_ax(ax=ax3, 
-                   pred=pred, 
-                   elev=10., 
-                   azim=-90,
-                   title='3D prediction'
-                   )    
-        adjust_figure(left = 0.05, 
-                      right = 0.95, 
-                      bottom = 0.08, 
-                      top = 0.92,
-                      wspace = 0.3, 
-                      hspace = 0.3
-                      )       
-        count += 1       
-        if count >= total_to_show:
-            break
-    
-        # Save figure
-        filename = f"pose_2d_{image_name}.jpg" 
-        filepath = os.path.join(output_dir, filename)
-        plt.savefig(filepath)
-    ''' 
-
-    #print(f"data_dic: {data_dic}")
 
     if use_webcam:
 

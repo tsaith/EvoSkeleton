@@ -10,6 +10,7 @@ def get_pred(cascade, data):
     """
     Get prediction from a cascaded model
     """
+
     # forward pass to get prediction for the first stage
     num_stages = len(cascade)
     # for legacy code that does not have the num_blocks attribute
@@ -19,6 +20,7 @@ def get_pred(cascade, data):
     # prediction for later stages
     for stage_idx in range(1, num_stages):
         prediction += cascade[stage_idx](data)
+
     return prediction
 
 
@@ -32,8 +34,6 @@ class CascadeDetector:
         self.mean_3d = None
         self.stddev_3d = None
 
-
-        self.preds = None
 
     def load_model(self, model_path):
 
@@ -74,13 +74,4 @@ class CascadeDetector:
             self.stats['std_3d'],
             self.stats['dim_ignore_3d'])      
     
-        '''
-        print(f"skeleton_2d shape: {skeleton_2d.shape}")
-        print(f"norm_ske_gt shape: {norm_ske_gt.shape}")
-        print(f"pred shape: {pred.shape}")
-        print(f"mean_3d shape: {self.stats['mean_3d'].shape}")
-        #print(f"mean_3d: {stats['mean_3d']}")
-        print(f"dim_ignore_3d shape: {self.stats['dim_ignore_3d'].shape}")
-        '''
-
         return pred

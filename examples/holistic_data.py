@@ -79,6 +79,9 @@ class HolisticData:
 
         pose_landmarks = self.mp_results.pose_landmarks
 
+        if pose_landmarks is None:
+            return
+
         for i in range(self.num_pose_landmarks):
 
             x = pose_landmarks.landmark[i].x           

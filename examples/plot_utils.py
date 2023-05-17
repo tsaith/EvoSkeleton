@@ -5,10 +5,34 @@ import matplotlib.pyplot as plt
 from skeleton_utils import pose_connection, re_order_indices, re_order
 
 
-num_joints = 16
-gt_3d = False  
-pose_connection = [[0,1], [1,2], [2,3], [0,4], [4,5], [5,6], [0,7], [7,8],
-                   [8,9], [9,10], [8,11], [11,12], [12,13], [8, 14], [14, 15], [15,16]]
+def plot_skeleton_2d(ax, skeleton, with_index=True):
+
+    num_joints = 17
+
+    for connect in pose_connection:
+
+        point1_idx = connect[0]
+        point2_idx = connect[1]
+
+        point1 = skeleton[point1_idx]
+        point2 = skeleton[point2_idx]
+        color = 'black'
+
+        plt.plot([int(point1[0]),int(point2[0])], 
+                 [int(point1[1]),int(point2[1])], 
+                 c=color, 
+                 linewidth=2)
+
+    if with_index:
+        for i, joint in enumerate(skeleton):
+            plt.text(joint[0], joint[1], str(i), color=color)
+
+        #for (idx, re_order_idx) in enumerate(re_order_indices):
+        #    plt.text(skeleton[re_order_idx][0], skeleton[re_order_idx][1],
+        #        str(idx+1), color='b')
+
+    return
+
 
 def draw_skeleton(ax, skeleton, gt=False, add_index=True):
 
@@ -22,13 +46,12 @@ def draw_skeleton(ax, skeleton, gt=False, add_index=True):
                  [int(point1[1]),int(point2[1])], 
                  c=color, 
                  linewidth=2)
+
     if add_index:
         for (idx, re_order_idx) in enumerate(re_order_indices):
-            plt.text(skeleton[re_order_idx][0], 
-                     skeleton[re_order_idx][1],
-                     str(idx+1), 
-                     color='b'
-                     )
+            plt.text(skeleton[re_order_idx][0], skeleton[re_order_idx][1],
+                str(idx+1), color='b')
+
     return
 
 def show3Dpose(channels, 
@@ -66,12 +89,14 @@ def show3Dpose(channels,
     white = (1.0, 1.0, 1.0, 0.0)
     ax.xaxis.set_pane_color(white)
     ax.yaxis.set_pane_color(white)
+
     # Get rid of the lines in 3d
     ax.xaxis.line.set_color(white)
     ax.yaxis.line.set_color(white)
     ax.zaxis.line.set_color(white)
 
     ax.invert_zaxis()
+
     return
 
 def plot_3d_ax(ax, elev, azim, pred, title=None):
