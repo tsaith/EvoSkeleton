@@ -13,10 +13,14 @@ videos/
 video/
 *.mp4
 
+# Images
+images/
+
 # for redundant files
 *~
 *.pyc
 *.jpg
+*.jpeg
 *.swp
 *.png
 *.tar.gz

@@ -1,13 +1,10 @@
 import numpy as np
-import imageio.v2 as imageio
 import matplotlib.pyplot as plt
 
 from skeleton_utils import pose_connection, re_order_indices, re_order
 
 
 def plot_skeleton_2d(ax, skeleton, with_index=True):
-
-    num_joints = 17
 
     for connect in pose_connection:
 
@@ -26,10 +23,6 @@ def plot_skeleton_2d(ax, skeleton, with_index=True):
     if with_index:
         for i, joint in enumerate(skeleton):
             plt.text(joint[0], joint[1], str(i), color=color)
-
-        #for (idx, re_order_idx) in enumerate(re_order_indices):
-        #    plt.text(skeleton[re_order_idx][0], skeleton[re_order_idx][1],
-        #        str(idx+1), color='b')
 
     return
 
@@ -74,6 +67,8 @@ def show3Dpose(channels,
             ax.plot(x,y, z,  lw=2, c=color)        
         else:
             ax.plot(x,y, z,  lw=2, c=lcolor if LR[i] else rcolor)
+
+
     RADIUS = 750 # space around the subject
     xroot, yroot, zroot = vals[0,0], vals[0,1], vals[0,2]
     ax.set_xlim3d([-RADIUS+xroot, RADIUS+xroot])

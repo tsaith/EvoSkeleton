@@ -2,8 +2,9 @@ import numpy as np
 
 pose_connection = [[0,1], [1,2], [2,3], [0,4], [4,5], [5,6], [0,7], [7,8],
                    [8,9], [9,10], [8,11], [11,12], [12,13], [8, 14], [14, 15], [15,16]]
+
 # 16 out of 17 key-points are used as inputs in this examplar model
-re_order_indices= [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16] # Skip nose
+re_order_indices= [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16] # Without Neck
 
 
 def re_order(skeleton):
@@ -102,6 +103,9 @@ def unNormalizeData(normalized_data, data_mean, data_std, dimensions_to_ignore):
     T = normalized_data.shape[0] # batch size
     D = data_mean.shape[0] # dimensionality
     orig_data = np.zeros((T, D), dtype=np.float32)
+
+    print(f"orig_data shape: {orig_data.shape}")
+
     dimensions_to_use = np.array([dim for dim in range(D)
                                     if dim not in dimensions_to_ignore])
     orig_data[:, dimensions_to_use] = normalized_data
@@ -136,7 +140,8 @@ def convert_holistic_to_skeleton_2d(data):
     shoulder_center = 0.5*(left_shoulder + right_shoulder)
 
     # Pelvis
-    pelvis = 0.8*hip_center + 0.2*shoulder_center
+    pelvis = hip_center
+    #pelvis = 0.8*hip_center + 0.2*shoulder_center
     skel[0, :] = pelvis
 
     # Right hip
@@ -209,5 +214,42 @@ def convert_holistic_to_skeleton_2d(data):
     # Convert to pixel space
     skel[:, 0] = skel[:, 0] * data.image_width
     skel[:, 1] = skel[:, 1] * data.image_height
+
+    return skel
+
+def get_keypoint_indexes_h36m17p():
+
+    indexes = [0, 1, 2, 3, 6, 7, 8, 12, 13, 14, 15, 17, 18, 19, 25, 26, 27]
+
+    return indexes
+
+def convert_to_skeleton_3d_h36m17p(data):
+
+    num_points = 17
+    dims = 3
+    skel = np.zeros((num_points, dims), dtype=np.float32)
+
+    indexes = get_keypoint_indexes_h36m17p()
+    for i in range(num_points):
+
+        j = indexes[i]
+        skel[i, :] = data[j, :] 
+
+    return skel
+
+def scale_skeleton_3d_from_h36m(skel_3d, target_width, target_height):
+
+    skel = skel_3d.copy()
+
+    h36m_width = 1000.0
+    h36m_height = 1000.0
+
+    ratio_x = 1.0*target_width/h36m_width
+    ratio_y = 1.0*target_height/h36m_height
+    ratio_z = ratio_x
+
+    skel[:, 0] = skel[:, 0] * ratio_x
+    skel[:, 1] = skel[:, 1] * ratio_y
+    skel[:, 2] = skel[:, 2] * ratio_z
 
     return skel

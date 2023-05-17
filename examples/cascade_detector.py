@@ -3,6 +3,7 @@ import numpy as np
 import torch
 
 from skeleton_utils import re_order_indices, estimate_stats, normalize, unNormalizeData
+from skeleton_utils import convert_to_skeleton_3d_h36m17p, scale_skeleton_3d_from_h36m
 import libs.model.model as libm
 
 
@@ -69,9 +70,14 @@ class CascadeDetector:
         #norm_ske_gt = normalize(skeleton_2d, re_order_indices, stats=skel_stats).reshape(1,-1)
         pred = get_pred(self.cascade, torch.from_numpy(norm_ske_gt.astype(np.float32)))      
 
+        #pred = pred.data.numpy()
+
+        #print(f"dim_ignore_3d: {self.stats['dim_ignore_3d']}")      
+
         pred = unNormalizeData(pred.data.numpy(),
             self.stats['mean_3d'],
             self.stats['std_3d'],
             self.stats['dim_ignore_3d'])      
+        print(f"ori pred shape: {pred.shape}")      
     
         return pred
