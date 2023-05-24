@@ -1,2 +1,2 @@
 # Parameters
-enable_gpu : 0
+use_gpu : 1
