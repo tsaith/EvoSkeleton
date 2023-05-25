@@ -6,66 +6,56 @@ import os
 import sys
 sys.path.append("../")
 
-import libs.model.model as libm
 from libs.dataset.h36m.data_utils import unNormalizeData
 
-import torch
 import numpy as np
 import cv2 as cv
 import yaml
 import mediapipe as mp
 
-import imageio.v2 as imageio
-import imageio.v3 as iio
 import matplotlib.pyplot as plt
 
 from skyeye.pose_estimation.evo import CascadeDetector
 from skyeye.pose_estimation.evo import convert_holistic_to_skeleton_2d
-from skyeye.pose_estimation.evo import convert_to_skeleton_3d_h36m17p, scale_skeleton_3d_from_h36m
+from skyeye.pose_estimation.evo import convert_to_skeleton_3d_h36m17p
 from skyeye.pose_estimation.evo import plot_skeleton_2d, plot_skeleton_3d
-from skyeye.pose_estimation.evo import plot_3d_ax
+from skyeye.pose_estimation.evo import figure_to_cv_image
+from skyeye.pose_estimation.evo import make_snapshot_plot
+#from skyeye.pose_estimation.evo import rotate_vector_3d, rotate_skeleton_3d
+from skyeye.pose_estimation.evo import rotate_skeleton_3d
 
 
 from skyeye.utils.opencv import Webcam, wait_key
 from skyeye.utils import Timer
+from skyeye.utils.file import make_dir
 
 from holistic_data import HolisticData
 
-from file_utils import make_dir
-
-
-mp_drawing = mp.solutions.drawing_utils
-mp_drawing_styles = mp.solutions.drawing_styles
 mp_holistic = mp.solutions.holistic
-
 holistic_detector = mp_holistic.Holistic(
     min_detection_confidence=0.5, min_tracking_confidence=0.5)
-
-
-
-def draw_msg(image, msg, x, y, y_shift=20, color=(0, 255,0)):
-
-    cv.putText(image, msg, (x, y),
-        cv.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
-    y += y_shift
-
-    return (x, y)
-
-
 
 def main():
 
     use_webcam = False # True: use video; False: use webcam
-    use_image = True
+    use_video = True  # True: use video; False: use webcam
+    use_image = False
 
-    video_path = "videos/TurnBody.mp4"
+    # Rotation angle
+    roll_angle = 0.0
+    #roll_angle = -15.0
+
+    video_path = "videos/sample_video.mp4"
+    #video_path = "videos/TurnBody.mp4"
     #video_path = "videos/Jump.mp4"
     #video_path = "videos/SquatDown.mp4" 
     #video_path = "videos/WalkAround.mp4"
 
+    output_dir = "outputs"
 
     image_dir = "images"
-    image_path = os.path.join(image_dir, "Samples/33.jpg")
+    image_path = os.path.join(image_dir, "Collected/p1.jpg")
+    #image_path = os.path.join(image_dir, "Samples/33.jpg")
     #image_path = os.path.join(image_dir, "TurnBody/frame_0090.jpg")
     #image_path = os.path.join(image_dir, "TurnBody/frame_0120.jpg")
     #image_path = os.path.join(image_dir, "SquatDown/frame_0150.jpg")
@@ -73,23 +63,23 @@ def main():
 
     webcam_device = 0 # Device ID
 
+    #frame_width = 500
+    #frame_height = 500
     frame_width = 1000
     frame_height = 1000
-
-    #frame_width = 640
-    #frame_height = 480
 
     use_V4L2 = True
     autofocus = False
     auto_exposure = True
 
-    image_dir = "imgs"
-    output_dir = "outputs"
-    
-    num_joints = 16
+    # Create output video directory
+    video_main_name = os.path.basename(video_path)
+    video_main_name = os.path.splitext(video_main_name)[0]
+    output_video_dir = os.path.join(output_dir, video_main_name)
+    os.makedirs(output_video_dir, exist_ok=True)
 
     # Set mediapipe using GPU
-    with open(r'mediapipe.yaml', 'r', encoding='utf-8') as f:
+    with open(r'inputs.yaml', 'r', encoding='utf-8') as f:
         inputs = yaml.load(f, Loader=yaml.Loader)
 
     use_gpu = inputs['use_gpu']
@@ -101,6 +91,7 @@ def main():
 
 
     if use_webcam:
+
         webcam = Webcam()
         if webcam.is_open():
             webcam.release()
@@ -108,15 +99,18 @@ def main():
         cap = webcam.open(webcam_device, width=frame_width, height=frame_height,
             use_V4L2=use_V4L2, autofocus=autofocus, auto_exposure=auto_exposure)
 
-    else:
+    if use_video:
 
         cap = cv.VideoCapture(video_path)
         if not cap.isOpened():
             print(f"Failed to open video file. {video_path}")
             exit()
 
+        video_length = int(cap.get(cv.CAP_PROP_FRAME_COUNT))
+        print(f"video_length: {video_length}")
+    
+
     # paths
-    data_dic_path = './example_annot.npy'     
     model_path = './example_model.th'
     stats_path = './stats.npy'
     
@@ -137,16 +131,15 @@ def main():
         frame_count += 1
         print(f"frame_count = {frame_count}")
 
-        ret, frame = cap.read()
-
         if use_image:
             frame = cv.imread(image_path)
+        else:    
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-        #if not ret:
-        #    break
-
-        if frame is None:
-            continue
+        #if frame is None:
+        #    continue
 
         # Resize frame  
         frame = cv.resize(frame, (frame_width, frame_height), interpolation=cv.INTER_AREA)
@@ -159,6 +152,14 @@ def main():
         # Convert to RGB format
         image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
 
+        plt.imshow(image)
+
+        # Save figure
+        filename = f"input_image.jpg" 
+        filepath = os.path.join(output_dir, filename)
+        plt.savefig(filepath)
+        plt.close()
+
         # To improve performance, optionally mark the image as not writeable to
         # pass by reference.
         image.flags.writeable = False
@@ -166,22 +167,6 @@ def main():
 
         holistic_data.update(results)
         skel_2d = convert_holistic_to_skeleton_2d(holistic_data)
-
-        f = plt.figure(figsize=(15, 5))
-
-        ax1 = plt.subplot(131)
-        plt.title('Input image')
-        ax1.imshow(image)
-
-        ax2 = plt.subplot(132)
-        #plt.title('2D key-point inputs')
-        #ax2.set_aspect('equal')
-        #ax2.invert_yaxis()
-        plot_skeleton_2d(ax2, skel_2d,
-            title="2D key-point inputs")
-        #draw_skeleton(ax2, skel_2d, gt=True)
-        #plt.plot(skel_2d[:,0], skel_2d[:,1], 'ro', 2)       
-
 
         timer.tic()
 
@@ -192,72 +177,30 @@ def main():
 
         skel_3d = pred.copy()
         skel_3d = skel_3d.reshape(-1, 3)
-
         skel_3d = convert_to_skeleton_3d_h36m17p(skel_3d)
 
-        print(f"skel_2d shape: {skel_2d.shape}")
-        print(f"skel_3d shape: {skel_3d.shape}")
+        # Rotate the skeleton
+        skel_3d = rotate_skeleton_3d(skel_3d, roll_angle, axis="x")
 
+        message = f"fps: {fps:3.1f}"
 
-        ax3 = plt.subplot(133, projection='3d')
-
-        plot_skeleton_3d(ax3, skel_3d, elev=90, azim=90,
-             xlabel="x", ylabel="y", zlabel="z", title="3d prediction")
-
-        '''
-        plot_3d_ax(ax=ax3, 
-                   pred=pred, 
-                   elev=0,  # 10, 
-                   azim=0, # -90,
-                   title='3D prediction'
-                   )    
-        adjust_figure(left = 0.05, 
-                      right = 0.95, 
-                      bottom = 0.08, 
-                      top = 0.92,
-                      wspace = 0.3, 
-                      hspace = 0.3
-                      )       
-        '''
+        try:
+            fig = make_snapshot_plot(image, skel_2d, skel_3d, message=message)
+        except:
+            continue
 
         # Save figure
         filename = f"snapshot.jpg" 
         filepath = os.path.join(output_dir, filename)
-        plt.savefig(filepath)
+        #plt.savefig(filepath)
 
+        snapshot_image = figure_to_cv_image(fig)
+        cv.imshow("snapshot", snapshot_image)
 
-        f = plt.figure(figsize=(15, 5))
-
-        ax1 = plt.subplot(131)
-        plt.title('Input image')
-        ax1.imshow(image)
-
-        ax2 = plt.subplot(132)
-        plot_skeleton_2d(ax2, skel_2d,
-            title="2D key-point inputs")
-
-        skel_3d_to_2d = skel_3d[:, 0:2]
-        ax3 = plt.subplot(133)
-        plot_skeleton_2d(ax3, skel_3d_to_2d, title="skel_3d to 2d")
-
-
-        # Save figure
-        filename = f"snapshot_test.jpg" 
-        filepath = os.path.join(output_dir, filename)
-        plt.savefig(filepath)
+        # Close figure 
+        plt.close(fig)
 
         print(f"Time cost of inference is {dt} in seconds.")
-
-        text_x = 20
-        text_y = 20
-        text_y_shift = 20
-
-        msg = f"fps: {fps:.1f}"
-        (text_x, text_y) = draw_msg(image_out, msg, text_x, text_y)
-
-        # show the frame and record if the user presses a key
-        cv.imshow("Win", image_out)
-
 
         # Exit while 'q' or 'Esc' is pressed
         key = wait_key(1)
@@ -268,7 +211,8 @@ def main():
         # cleanup the camera and close any open windows
         if webcam.is_open():
             webcam.release()
-    else:
+
+    if use_video:
 
         if cap.isOpened():
             cap.release()        
