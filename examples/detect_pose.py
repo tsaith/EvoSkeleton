@@ -19,12 +19,13 @@ from skyeye.pose_estimation.evo import CascadeDetector
 from skyeye.pose_estimation.evo import convert_holistic_to_skeleton_2d
 from skyeye.pose_estimation.evo import convert_to_skeleton_3d_h36m17p
 from skyeye.pose_estimation.evo import plot_skeleton_2d, plot_skeleton_3d
-from skyeye.pose_estimation.evo import figure_to_cv_image
 from skyeye.pose_estimation.evo import make_snapshot_plot
 #from skyeye.pose_estimation.evo import rotate_vector_3d, rotate_skeleton_3d
 from skyeye.pose_estimation.evo import rotate_skeleton_3d
+from skyeye.pose_estimation.evo import is_valid_skeleton
+from skyeye.pose_estimation import Diagnostic
 
-
+from skyeye.utils.matplotlib import figure_to_cv_image
 from skyeye.utils.opencv import Webcam, wait_key
 from skyeye.utils import Timer
 from skyeye.utils.file import make_dir
@@ -54,7 +55,7 @@ def main():
     output_dir = "outputs"
 
     image_dir = "images"
-    image_path = os.path.join(image_dir, "Collected/p1.jpg")
+    #image_path = os.path.join(image_dir, "Collected/p1.jpg")
     #image_path = os.path.join(image_dir, "Samples/33.jpg")
     #image_path = os.path.join(image_dir, "TurnBody/frame_0090.jpg")
     #image_path = os.path.join(image_dir, "TurnBody/frame_0120.jpg")
@@ -98,6 +99,8 @@ def main():
 
         cap = webcam.open(webcam_device, width=frame_width, height=frame_height,
             use_V4L2=use_V4L2, autofocus=autofocus, auto_exposure=auto_exposure)
+        
+        num_frames = 100000000
 
     if use_video:
 
@@ -106,9 +109,9 @@ def main():
             print(f"Failed to open video file. {video_path}")
             exit()
 
-        video_length = int(cap.get(cv.CAP_PROP_FRAME_COUNT))
-        print(f"video_length: {video_length}")
-    
+        num_frames = int(cap.get(cv.CAP_PROP_FRAME_COUNT))
+
+    print(f"num_frames: {num_frames}")
 
     # paths
     model_path = './example_model.th'
@@ -123,13 +126,17 @@ def main():
     holistic_data = HolisticData()
     holistic_data.set_image_size(frame_width, frame_height)
 
+    # Diagnostic
+    diag = Diagnostic()
+    video_filename = os.path.basename(video_path)
+    diag.init(video_filename=video_filename)
+
     timer = Timer()
 
-    frame_count = 0
-    while True:
 
-        frame_count += 1
-        print(f"frame_count = {frame_count}")
+    for iframe in range(num_frames):
+
+        print(f"iframe: {iframe}")
 
         if use_image:
             frame = cv.imread(image_path)
@@ -137,9 +144,6 @@ def main():
             ret, frame = cap.read()
             if not ret:
                 break
-
-        #if frame is None:
-        #    continue
 
         # Resize frame  
         frame = cv.resize(frame, (frame_width, frame_height), interpolation=cv.INTER_AREA)
@@ -168,6 +172,12 @@ def main():
         holistic_data.update(results)
         skel_2d = convert_holistic_to_skeleton_2d(holistic_data)
 
+        is_valid = is_valid_skeleton(skel_2d)
+        print(f"is_valid: {is_valid}")
+
+        if not is_valid:
+            continue 
+
         timer.tic()
 
         pred = detector.predict(skel_2d)
@@ -189,12 +199,10 @@ def main():
         except:
             continue
 
-        # Save figure
-        filename = f"snapshot.jpg" 
-        filepath = os.path.join(output_dir, filename)
-        #plt.savefig(filepath)
-
+        # Export snapshot frame 
         snapshot_image = figure_to_cv_image(fig)
+        diag.export_video_frame(snapshot_image)
+
         cv.imshow("snapshot", snapshot_image)
 
         # Close figure 
